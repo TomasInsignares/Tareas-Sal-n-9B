@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lista de Tareas del Salón</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <style>
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f4f6f8;
+    color: #333;
+    text-align: center;
+  }
+
+  header {
+    background-color: #2C74E8;
+    width: 100%;
+    padding: 15px 0;
+    text-align: center;
+  }
+
+  header .logo {
+    height: 60px;
+    margin-right: 15px;
+  }
+
+  header h1 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 2em;
+  }
+
+  .controls {
+    margin: 20px;
+  }
+
+  input[type="text"] {
+    padding: 8px;
+    width: 250px;
+    font-size: 1em;
+  }
+
+  button {
+    padding: 8px 12px;
+    margin-left: 10px;
+    background-color: #2C74E8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background-color: #1d5fd6;
+  }
+
+  table {
+    width: 90%;
+    margin: 20px auto;
+    border-collapse: collapse;
+    background-color: white;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  th, td {
+    padding: 12px;
+    border-bottom: 1px solid #ddd;
+    text-align: center;
+    font-weight: normal; 
+    color: #333;
+  }
+
+  th {
+    background-color: #2C74E8;
+    color: white;
+    font-weight: bold; 
+  }
+
+  tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+
+  .atrasada {
+    background-color: #fe8484 !important;
+  }
+
+  .proxima {
+    background-color: #fff2cc !important;
+  }
+
+  .normal {
+    background-color: #ccffcc !important;
+  }
+
+  
+  #tareasTable th:nth-child(1),
+  #tareasTable td:nth-child(1) {
+    width: 40%; 
+    font-size: 1.05em;
+  }
+
+  #tareasTable th:nth-child(2),
+  #tareasTable td:nth-child(2) {
+    width: 25%; 
+  }
+
+  #tareasTable th:nth-child(3),
+  #tareasTable td:nth-child(3) {
+    width: 20%; 
+  }
+
+  #tareasTable th:nth-child(4),
+  #tareasTable td:nth-child(4) {
+    width: 15%; 
+    font-size: 0.95em;
+    color: #333; 
+  }
+
+  #tareasTable th {
+  background-color: #2C74E8;
+  color: white;       
+  font-weight: bold;
+}
+
+
+#tareasTable th:nth-child(4) {
+  color: white;       
+  font-size: 1em;     
+}
+</style>
+</head>
+<body>
+
+  <header>
+    <img src="logo.png" alt="Logo del salón" class="logo">
+  </header>
+
+  <div class="controls">
+    <input type="text" id="searchInput" placeholder="Buscar por tarea o materia...">
+    <button id="toggleView">Mostrar Todo</button>
+  </div>
+
+  <table id="tareasTable">
+    <thead>
+      <tr>
+        <th>Tarea</th>
+        <th>Materia</th>
+        <th>Fecha de Entrega</th>
+        <th>Días Restantes</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const csvURL = "https://docs.google.com/spreadsheets/d/1RKe-yOwBOM1nmD1ejofpYYtBFzJTiflaLDB9DY-o8xQ/edit?gid=0#gid=0";
+
+    function parseDate(dateStr) {
+      const parts = dateStr.trim().split(/[\/\-]/);
+      if (parts.length === 3) {
+        let day = parts[0];
+        let month = parts[1];
+        let year = parts[2].length === 2 ? "20" + parts[2] : parts[2];
+        return new Date(`${year}-${month}-${day}T00:00:00`);
+      }
+      return new Date(dateStr);
+    }
+
+    function getColombiaDate() {
+      const now = new Date();
+      const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+      return new Date(utc - (5 * 60 * 60000));
+    }
+
+    let todasLasTareas = [];
+    let mostrarVencidas = false;
+
+    fetch(csvURL)
+      .then(response => response.text())
+      .then(csvText => {
+        const rows = csvText.split("\n").map(r => r.split(","));
+        const hoy = getColombiaDate();
+
+        todasLasTareas = rows.slice(1).map(row => {
+          if (row.length < 3) return null;
+          const fecha = parseDate(row[2]);
+          return {
+            tarea: row[0],
+            materia: row[1],
+            fechaTexto: row[2],
+            fecha: fecha
+          };
+        }).filter(r => r).sort((a, b) => a.fecha - b.fecha);
+
+        renderTabla();
+      });
+
+    function renderTabla() {
+      const hoy = getColombiaDate();
+      const tbody = document.querySelector("#tareasTable tbody");
+      tbody.innerHTML = "";
+
+      let tareasFiltradas = todasLasTareas.filter(item => {
+        if (!mostrarVencidas) {
+          return item.fecha.setHours(0,0,0,0) >= hoy.setHours(0,0,0,0);
+        }
+        return true;
+      });
+
+      const filtro = document.getElementById("searchInput").value.toLowerCase();
+      if (filtro) {
+        tareasFiltradas = tareasFiltradas.filter(item =>
+          item.tarea.toLowerCase().includes(filtro) ||
+          item.materia.toLowerCase().includes(filtro)
+        );
+      }
+
+      tareasFiltradas.forEach(item => {
+        const diff = Math.floor((item.fecha - hoy) / (1000 * 60 * 60 * 24));
+        let estadoClase = "normal";
+        if (diff < 0) estadoClase = "atrasada";
+        else if (diff <= 2) estadoClase = "proxima";
+
+        const diasTexto = diff < 0 ? "Vencida"
+                          : diff === 0 ? "Vence hoy"
+                          : `Faltan ${diff} días`;
+
+        const tr = document.createElement("tr");
+        tr.className = estadoClase;
+        tr.innerHTML = `
+          <td>${item.tarea}</td>
+          <td>${item.materia}</td>
+          <td>${item.fechaTexto}</td>
+          <td>${diasTexto}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById("searchInput").addEventListener("input", renderTabla);
+    document.getElementById("toggleView").addEventListener("click", () => {
+      mostrarVencidas = !mostrarVencidas;
+      document.getElementById("toggleView").innerText = mostrarVencidas ? "Ocultar Vencidas" : "Mostrar Todo";
+      renderTabla();
+    });
+  </script>
+
+</body>
+</html>
